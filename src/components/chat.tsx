@@ -9,6 +9,14 @@ import {
 import { Button } from "@/components/button";
 import { ScrollArea } from "@/components/scroll-area";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   RiCodeSSlashLine,
   RiShareLine,
   RiShareCircleLine,
@@ -18,6 +26,7 @@ import {
   RiLeafLine,
 } from "@remixicon/react";
 import { ChatMessage } from "@/components/chat-message";
+import { MessageLoading } from "@/components/ui/message-loading";
 import { useEffect, useRef, useState } from "react";
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText } from "ai";
@@ -172,15 +181,49 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                 Today
               </div>
             </div>
-            {messages.map((message) => (
+            {messages.map((message, index) => (
               <ChatMessage key={message.id} isUser={message.isUser}>
                 {message.isUser ? (
                   <p>{message.text}</p>
+                ) : isLoading && message.text === '' ? ( // Show loading only if AI message is empty and loading
+                  <MessageLoading />
                 ) : (
-                  <div className="prose dark:prose-invert">
+                  <div className="prose dark:prose-invert max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[RehypeHighlight as any]} // Cast to any to bypass type error for now
+                      components={{
+                        table: ({ children, ...props }) => (
+                          <Table className="my-4" {...props}>
+                            {children}
+                          </Table>
+                        ),
+                        thead: ({ children, ...props }) => (
+                          <TableHeader {...props}>
+                            {children}
+                          </TableHeader>
+                        ),
+                        tbody: ({ children, ...props }) => (
+                          <TableBody {...props}>
+                            {children}
+                          </TableBody>
+                        ),
+                        tr: ({ children, ...props }) => (
+                          <TableRow {...props}>
+                            {children}
+                          </TableRow>
+                        ),
+                        th: ({ children, ...props }) => (
+                          <TableHead {...props}>
+                            {children}
+                          </TableHead>
+                        ),
+                        td: ({ children, ...props }) => (
+                          <TableCell {...props}>
+                            {children}
+                          </TableCell>
+                        ),
+                      }}
                     >
                       {message.text}
                     </ReactMarkdown>
