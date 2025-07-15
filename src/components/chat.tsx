@@ -36,7 +36,7 @@ import remarkGfm from "remark-gfm";
 import RehypeHighlight from "rehype-highlight";
 
 const openai = createOpenAI({
-  baseURL: process.env.NEXT_PUBLIC_OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+  baseURL: '/api/proxy', // Always use the proxy endpoint to avoid CORS issues
   apiKey: process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '',
 });
 
@@ -90,7 +90,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
 
     try {
       const result = await streamText({
-        model: openai.chat('gpt-4o-mini'),
+        model: openai.chat('deepseek-ai/DeepSeek-R1-0528'),
         messages: messagesToSend.map(msg => ({ role: msg.role, content: msg.content })),
       });
 
@@ -225,7 +225,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                         ),
                       }}
                     >
-                      {message.text}
+                      {message.text.replace(/<think>[\s\S]*?<\/think>/g, '')}
                     </ReactMarkdown>
                   </div>
                 )}
