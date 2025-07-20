@@ -28,29 +28,16 @@ import {
 import { ChatMessage } from "@/components/chat-message";
 import { MessageLoading } from "@/components/ui/message-loading";
 import { useEffect, useRef, useState } from "react";
-import { createOpenAI } from "@ai-sdk/openai";
-import { streamText } from "ai";
 import { systemPrompts } from "@/lib/system-prompt";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import RehypeHighlight from "rehype-highlight";
-
-const openai = createOpenAI({
-  baseURL: '/api/proxy', // Always use the proxy endpoint to avoid CORS issues
-  apiKey: process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '',
-});
 
 type Message = {
   id: number;
   text: string;
   isUser: boolean;
 };
-
-interface AIMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
 
 export default function Chat({ mode, messages, setMessages }: { mode: string; messages: Message[]; setMessages: (newMessages: Message[]) => void }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -74,43 +61,104 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
     const userMessageWithId: Message = { ...newUserMessage, id: messages.length + 1 };
     const messagesAfterUser = [...messages, userMessageWithId];
     setMessages(messagesAfterUser);
+    
+    const userInput = input;
     setInput("");
 
-    const currentSystemPrompt = systemPrompts[mode.toLowerCase().replace(/\s/g, '')] || "";
-
-    // Prepare messages for AI SDK, including the new user message
-    const messagesToSend: AIMessage[] = [
-      { id: "system-prompt", role: "system", content: currentSystemPrompt },
-      ...messagesAfterUser.map(msg => ({
-        id: msg.id.toString(),
-        role: msg.isUser ? "user" : "assistant",
-        content: msg.text,
-      }) as AIMessage),
-    ];
-
     try {
-      const result = await streamText({
-        model: openai.chat('deepseek-ai/DeepSeek-R1-0528'),
-        messages: messagesToSend.map(msg => ({ role: msg.role, content: msg.content })),
+      // Determine the bot_app_key based on the mode
+      const bot_app_key = mode === 'kalenderakademik' ? 'HTQdMJDA' : 'mAdnKOee';
+
+      // Prepare the request body with dynamic content
+      const requestBody = {
+        content: userInput,
+        bot_app_key: bot_app_key,
+        visitor_biz_id: "71f98ce2-fe7b-4c5e-aeb1-38bd87cc4dfd",
+        session_id: "71f98ce2-fe7b-4c5e-aeb1-38bd87cc4dfd",
+        visitor_labels: []
+      };
+
+      const response = await fetch("https://wss.lke.tencentcloud.com/v1/qbot/chat/sse", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream",
+        },
+        body: JSON.stringify(requestBody),
       });
 
-      let aiResponseContent = '';
-      let aiMessageId = messagesAfterUser.length + 1; // ID for the new AI message
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Process SSE response with streaming
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let aiResponseContent = "";
+      let aiMessageId = messagesAfterUser.length + 1;
 
       // Add a placeholder AI message to the state
       const messagesAfterAIPlaceholder = [...messagesAfterUser, { id: aiMessageId, text: '', isUser: false }];
       setMessages(messagesAfterAIPlaceholder);
 
-      for await (const chunk of result.textStream) {
-        aiResponseContent += chunk;
-        const updatedMessagesDuringStream = messagesAfterAIPlaceholder.map((msg) =>
-          msg.id === aiMessageId ? { ...msg, text: aiResponseContent } : msg
+      if (reader) {
+        let buffer = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value);
+          
+          // Process complete SSE events
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+          
+          let currentEvent = '';
+          
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              currentEvent = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              const dataStr = line.slice(5).trim();
+              
+              // Only process 'thought' events which contain the streaming content
+              if (currentEvent === 'thought') {
+                try {
+                  const data = JSON.parse(dataStr);
+                  if (data.payload?.procedures?.[0]?.debugging?.content) {
+                    const newContent = data.payload.procedures[0].debugging.content;
+                    // The content from the server is cumulative, so we replace the old content
+                    aiResponseContent = newContent;
+                    
+                    // Update the message in real-time during streaming
+                    const updatedMessagesDuringStream = messagesAfterAIPlaceholder.map((msg) =>
+                      msg.id === aiMessageId ? { ...msg, text: aiResponseContent } : msg
+                    );
+                    setMessages(updatedMessagesDuringStream);
+                  }
+                } catch (e) {
+                  console.error('Failed to parse SSE thought event:', e);
+                }
+              }
+            } else if (line.trim() === '') {
+              // Empty line indicates end of event
+              currentEvent = '';
+            }
+          }
+        }
+      }
+
+      // If no content was received through streaming, handle completion
+      if (aiResponseContent === '') {
+        const updatedMessages = messagesAfterAIPlaceholder.map((msg) =>
+          msg.id === aiMessageId ? { ...msg, text: 'No response received from the server.' } : msg
         );
-        setMessages(updatedMessagesDuringStream);
+        setMessages(updatedMessages);
       }
     } catch (error) {
-      console.error("Error during AI stream:", error);
-      setMessages([...messagesAfterUser, { id: messagesAfterUser.length + 1, text: 'Error: Unable to get a response.', isUser: false }]);
+      console.error("Error during API call:", error);
+      setMessages([...messagesAfterUser, { id: messagesAfterUser.length + 1, text: 'Error: Unable to get a response. Details: ' + (error instanceof Error ? error.message : String(error)), isUser: false }]);
     } finally {
       setIsLoading(false);
     }
@@ -191,7 +239,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                   <div className="prose dark:prose-invert max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[RehypeHighlight as any]} // Cast to any to bypass type error for now
+                      rehypePlugins={[RehypeHighlight as any]}
                       components={{
                         table: ({ children, ...props }) => (
                           <Table className="my-4" {...props}>
@@ -225,7 +273,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                         ),
                       }}
                     >
-                      {message.text.replace(/<think>[\s\S]*?<\/think>/g, '')}
+                      {message.text}
                     </ReactMarkdown>
                   </div>
                 )}

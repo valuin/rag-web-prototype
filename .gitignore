@@ -18,6 +18,7 @@
 /out/
 
 # production
+run.py
 /build
 
 # misc
