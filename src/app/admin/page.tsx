@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { IconTrendingUp, IconTrendingDown, IconMessageCircle, IconFiles, IconUsers, IconClock } from "@tabler/icons-react";
-import { Upload, FileText, Check, X, RotateCcw } from "lucide-react";
+import { Upload, FileText, Check, X } from "lucide-react";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import {
