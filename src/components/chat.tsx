@@ -122,23 +122,26 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
             } else if (line.startsWith('data:')) {
               const dataStr = line.slice(5).trim();
               
-              // Only process 'thought' events which contain the streaming content
-              if (currentEvent === 'thought') {
+              // Process 'reply' events which contain the streaming content
+              if (currentEvent === 'reply') {
                 try {
                   const data = JSON.parse(dataStr);
-                  if (data.payload?.procedures?.[0]?.debugging?.content) {
-                    const newContent = data.payload.procedures[0].debugging.content;
+                  if (data.payload?.content !== undefined) {
+                    const newContent = data.payload.content;
                     // The content from the server is cumulative, so we replace the old content
                     aiResponseContent = newContent;
                     
+                    // The content from the server is cumulative, so we replace the old content
+                    
                     // Update the message in real-time during streaming
-                    const updatedMessagesDuringStream = messagesAfterAIPlaceholder.map((msg) =>
-                      msg.id === aiMessageId ? { ...msg, text: aiResponseContent } : msg
+                    setMessages(
+                      messagesAfterAIPlaceholder.map((msg) =>
+                        msg.id === aiMessageId ? { ...msg, text: aiResponseContent } : msg
+                      )
                     );
-                    setMessages(updatedMessagesDuringStream);
                   }
                 } catch (e) {
-                  console.error('Failed to parse SSE thought event:', e);
+                  console.error('Failed to parse SSE reply event:', e);
                 }
               }
             } else if (line.trim() === '') {
@@ -233,7 +236,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
               <ChatMessage key={message.id} isUser={message.isUser}>
                 {message.isUser ? (
                   <p>{message.text}</p>
-                ) : isLoading && message.text === '' ? ( // Show loading only if AI message is empty and loading
+                ) : isLoading && index === messages.length - 1 && message.text === '' ? (
                   <MessageLoading />
                 ) : (
                   <div className="prose dark:prose-invert max-w-none">

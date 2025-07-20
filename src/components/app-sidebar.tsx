@@ -23,6 +23,7 @@ import {
   RiPlanetLine,
   RiSeedlingLine,
   RiSettings3Line,
+  RiDashboardLine,
 } from "@remixicon/react";
 
 // This is sample data.
@@ -48,13 +49,13 @@ const data = {
       items: [
         {
           title: "Kalender Akademik",
-          url: "#",
+          url: "/#",
           icon: RiChat1Line,
           isActive: true,
         },
         {
           title: "POS",
-          url: "#",
+          url: "/#",
           icon: RiBardLine,
         }
       ],
@@ -63,6 +64,11 @@ const data = {
       title: "More",
       url: "#",
       items: [
+        {
+          title: "Admin Dashboard",
+          url: "/admin",
+          icon: RiDashboardLine,
+        },
         {
           title: "Settings",
           url: "#",
