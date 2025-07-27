@@ -30,7 +30,7 @@ import {
 const data = {
   teams: [
     {
-      name: "Universitas 1",
+      name: "Universitas Bunda Mulia",
       logo: "https://raw.githubusercontent.com/origin-space/origin-images/refs/heads/main/exp2/logo-01_upxvqe.png",
     },
     {
@@ -51,7 +51,21 @@ const data = {
           title: "Kalender Akademik",
           url: "/#",
           icon: RiChat1Line,
-          isActive: true,
+        },
+        {
+          title: "Tutor MK A",
+          url: "/#",
+          icon: RiChat1Line,
+        },
+        {
+          title: "Tutor MK B",
+          url: "/#",
+          icon: RiChat1Line,
+        },
+        {
+          title: "Tutor MK C",
+          url: "/#",
+          icon: RiChat1Line,
         },
         {
           title: "POS",
@@ -82,11 +96,11 @@ const data = {
 import { useState } from "react";
 
 export function AppSidebar({ onModeChange, ...props }: React.ComponentProps<typeof Sidebar> & { onModeChange: (mode: string) => void }) {
-  const [activeItem, setActiveItem] = useState("Kalender Akademik");
+  const [activeItem, setActiveItem] = useState("Tutor MK A");
 
   const handleItemClick = (title: string) => {
     setActiveItem(title);
-    onModeChange(title.toLowerCase().replace(/\s/g, '')); // Normalize the mode string
+    onModeChange(title.toLowerCase().replace(/\s/g, '-')); // Normalize the mode string
   };
 
   return (
@@ -140,7 +154,6 @@ export function AppSidebar({ onModeChange, ...props }: React.ComponentProps<type
                   <SidebarMenuButton
                     asChild
                     className="group/menu-button font-medium gap-3 h-9 rounded-md [&>svg]:size-auto"
-                    isActive={item.isActive}
                   >
                     <a href={item.url}>
                       {item.icon && (

@@ -18,11 +18,14 @@ type Message = {
 };
 
 export default function Page() {
-  const normalizeMode = (mode: string) => mode.toLowerCase().replace(/\s/g, '');
-  const initialMode = normalizeMode("Kalender Akademik");
+  const normalizeMode = (mode: string) => mode.toLowerCase().replace(/\s/g, '-');
+  const initialMode = normalizeMode("Tutor MK A"); // Set initial mode to Tutor MK A
   const [chatMode, setChatMode] = useState(initialMode);
   const [chatHistories, setChatHistories] = useState<Record<string, Message[]>>({
     [normalizeMode("Kalender Akademik")]: [],
+    [normalizeMode("Tutor MK A")]: [],
+    [normalizeMode("Tutor MK B")]: [],
+    [normalizeMode("Tutor MK C")]: [],
     [normalizeMode("POS")]: [],
   });
 

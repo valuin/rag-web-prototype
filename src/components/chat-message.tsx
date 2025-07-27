@@ -5,12 +5,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/tooltip";
+import { RiMailLine } from "@remixicon/react";
 import {
-  RiCodeSSlashLine,
-  RiBookLine,
-  RiLoopRightFill,
-  RiCheckLine,
-} from "@remixicon/react";
+  Dialog,
+  DialogTrigger,
+} from "@/components/dialog";
+import { Button } from "@/components/ui/button";
+import { FeedbackDialog } from "@/components/feedback-dialog";
 import { User, Bot } from "lucide-react"; // Import User and Bot icons
 
 type ChatMessageProps = {
@@ -38,42 +39,22 @@ export function ChatMessage({ isUser, children }: ChatMessageProps) {
           <p className="sr-only">{isUser ? "You" : "Bart"} said:</p>
           {children}
         </div>
-        {!isUser && <MessageActions />}
+        {!isUser && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="lg"
+                className="text-muted-foreground/80 cursor-pointer hover:text-foreground transition-colors"
+              >
+                <RiMailLine size={16} />
+                <span className="text-black">Give Feedback</span>
+              </Button>
+            </DialogTrigger>
+            <FeedbackDialog />
+          </Dialog>
+        )}
       </div>
     </article>
-  );
-}
-
-type ActionButtonProps = {
-  icon: React.ReactNode;
-  label: string;
-};
-
-function ActionButton({ icon, label }: ActionButtonProps) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button className="relative text-muted-foreground/80 hover:text-foreground transition-colors size-8 flex items-center justify-center before:absolute before:inset-y-1.5 before:left-0 before:w-px before:bg-border first:before:hidden first-of-type:rounded-s-lg last-of-type:rounded-e-lg focus-visible:z-10 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring/70">
-          {icon}
-          <span className="sr-only">{label}</span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="dark px-2 py-1 text-xs">
-        <p>{label}</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function MessageActions() {
-  return (
-    <div className="relative inline-flex bg-white rounded-md border border-black/[0.08] shadow-sm -space-x-px">
-      <TooltipProvider delayDuration={0}>
-        <ActionButton icon={<RiCodeSSlashLine size={16} />} label="Show code" />
-        <ActionButton icon={<RiBookLine size={16} />} label="Bookmark" />
-        <ActionButton icon={<RiLoopRightFill size={16} />} label="Refresh" />
-        <ActionButton icon={<RiCheckLine size={16} />} label="Approve" />
-      </TooltipProvider>
-    </div>
   );
 }

@@ -43,6 +43,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [streamChunkCount, setStreamChunkCount] = useState(0);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,7 +68,16 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
 
     try {
       // Determine the bot_app_key based on the mode
-      const bot_app_key = mode === 'kalenderakademik' ? 'HTQdMJDA' : 'mAdnKOee';
+      let bot_app_key = 'mAdnKOee'; // Default bot_app_key
+      if (mode === 'kalenderakademik') {
+        bot_app_key = 'HTQdMJDA';
+      } else if (mode === 'tutor-mk-a') {
+        bot_app_key = 'qmgRnljt';
+      } else if (mode === 'tutor-mk-b') {
+        bot_app_key = 'KLDDElGB';
+      } else if (mode === 'tutor-mk-c') {
+        bot_app_key = 'mpIozNNe';
+      }
 
       // Prepare the request body with dynamic content
       const requestBody = {
@@ -100,6 +110,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
       // Add a placeholder AI message to the state
       const messagesAfterAIPlaceholder = [...messagesAfterUser, { id: aiMessageId, text: '', isUser: false }];
       setMessages(messagesAfterAIPlaceholder);
+      setStreamChunkCount(0); // Reset count for new message
 
       if (reader) {
         let buffer = '';
@@ -128,12 +139,9 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                   const data = JSON.parse(dataStr);
                   if (data.payload?.content !== undefined) {
                     const newContent = data.payload.content;
-                    // The content from the server is cumulative, so we replace the old content
                     aiResponseContent = newContent;
-                    
-                    // The content from the server is cumulative, so we replace the old content
-                    
-                    // Update the message in real-time during streaming
+                    setStreamChunkCount(prev => prev + 1); // Increment chunk count
+
                     setMessages(
                       messagesAfterAIPlaceholder.map((msg) =>
                         msg.id === aiMessageId ? { ...msg, text: aiResponseContent } : msg
@@ -145,12 +153,12 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                 }
               }
             } else if (line.trim() === '') {
-              // Empty line indicates end of event
               currentEvent = '';
             }
           }
         }
       }
+      setStreamChunkCount(0); // Reset after streaming is complete
 
       // If no content was received through streaming, handle completion
       if (aiResponseContent === '') {
@@ -236,7 +244,7 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
               <ChatMessage key={message.id} isUser={message.isUser}>
                 {message.isUser ? (
                   <p>{message.text}</p>
-                ) : isLoading && index === messages.length - 1 && message.text === '' ? (
+                ) : (isLoading && index === messages.length - 1 && streamChunkCount < 3) ? (
                   <MessageLoading />
                 ) : (
                   <div className="prose dark:prose-invert max-w-none">
