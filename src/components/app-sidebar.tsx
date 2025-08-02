@@ -53,17 +53,17 @@ const data = {
           icon: RiChat1Line,
         },
         {
-          title: "Tutor MK A",
+          title: "Marketing Management",
           url: "/#",
           icon: RiChat1Line,
         },
         {
-          title: "Tutor MK B",
+          title: "Macroeconomics",
           url: "/#",
           icon: RiChat1Line,
         },
         {
-          title: "Tutor MK C",
+          title: "Supply Chain",
           url: "/#",
           icon: RiChat1Line,
         },
@@ -96,7 +96,7 @@ const data = {
 import { useState } from "react";
 
 export function AppSidebar({ onModeChange, ...props }: React.ComponentProps<typeof Sidebar> & { onModeChange: (mode: string) => void }) {
-  const [activeItem, setActiveItem] = useState("Tutor MK A");
+  const [activeItem, setActiveItem] = useState("Marketing Management");
 
   const handleItemClick = (title: string) => {
     setActiveItem(title);

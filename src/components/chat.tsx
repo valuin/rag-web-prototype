@@ -71,11 +71,11 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
       let bot_app_key = 'mAdnKOee'; // Default bot_app_key
       if (mode === 'kalenderakademik') {
         bot_app_key = 'HTQdMJDA';
-      } else if (mode === 'tutor-mk-a') {
+      } else if (mode === 'marketing-management') {
         bot_app_key = 'qmgRnljt';
-      } else if (mode === 'tutor-mk-b') {
+      } else if (mode === 'macroeconomics') {
         bot_app_key = 'KLDDElGB';
-      } else if (mode === 'tutor-mk-c') {
+      } else if (mode === 'supply-chain') {
         bot_app_key = 'mpIozNNe';
       }
 
