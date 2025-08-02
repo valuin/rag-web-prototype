@@ -9,14 +9,6 @@ import {
 import { Button } from "@/components/button";
 import { ScrollArea } from "@/components/scroll-area";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   RiCodeSSlashLine,
   RiShareLine,
   RiShareCircleLine,
@@ -28,10 +20,8 @@ import {
 import { ChatMessage } from "@/components/chat-message";
 import { MessageLoading } from "@/components/ui/message-loading";
 import { useEffect, useRef, useState } from "react";
-import { systemPrompts } from "@/lib/system-prompt";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import RehypeHighlight from "rehype-highlight";
+import { ChatMarkdown } from "@/components/chat-markdown";
+import { getModeCopy, resolveBotKey } from "@/components/chat-config";
 
 type Message = {
   id: number;
@@ -39,140 +29,198 @@ type Message = {
   isUser: boolean;
 };
 
-export default function Chat({ mode, messages, setMessages }: { mode: string; messages: Message[]; setMessages: (newMessages: Message[]) => void }) {
+const streamText = async (
+  text: string,
+  onUpdate: (partial: string) => void,
+  chunkSize = 24,
+  delay = 35
+) => {
+  let acc = "";
+  for (let i = 0; i < text.length; i += chunkSize) {
+    const chunk = text.slice(i, i + chunkSize);
+    acc += chunk;
+    onUpdate(acc);
+    await new Promise((r) => setTimeout(r, delay));
+  }
+};
+
+export default function Chat({
+  mode,
+  messages,
+  setMessages,
+}: {
+  mode: string;
+  messages: Message[];
+  setMessages: (newMessages: Message[]) => void;
+}) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [streamChunkCount, setStreamChunkCount] = useState(0);
+  const [showExamples, setShowExamples] = useState(false);
+
+  const { welcome, examples } = getModeCopy(mode);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (input.trim() === "") return;
+  useEffect(() => {
+    if (messages.length > 0) return;
 
     setIsLoading(true);
-    const newUserMessage: Message = {
+    const aiId = 1;
+    setMessages([{ id: aiId, text: "", isUser: false }]);
+    setStreamChunkCount(0);
+
+    streamText(welcome, (partial) => {
+      setStreamChunkCount((c) => c + 1);
+      setMessages([{ id: aiId, text: partial, isUser: false }]);
+    }).then(() => {
+      setStreamChunkCount(0);
+      setIsLoading(false);
+      setShowExamples(true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, welcome]);
+
+  const handleSuggestionClick = (q: string) => {
+    if (isLoading) return;
+    // Directly send using the clicked example text to avoid relying on async state
+    setShowExamples(false);
+    void handleSendMessageWithText(q);
+  };
+
+  // Internal helper to send a specific text (used by suggestion click)
+  const handleSendMessageWithText = async (text: string) => {
+    if (text.trim() === "") return;
+
+    setIsLoading(true);
+    const userMessage: Message = {
       id: messages.length + 1,
-      text: input,
+      text,
       isUser: true,
     };
-    // Add user message immediately
-    const userMessageWithId: Message = { ...newUserMessage, id: messages.length + 1 };
-    const messagesAfterUser = [...messages, userMessageWithId];
+    const messagesAfterUser = [...messages, userMessage];
     setMessages(messagesAfterUser);
-    
-    const userInput = input;
+
+    const userInput = text;
     setInput("");
 
     try {
-      // Determine the bot_app_key based on the mode
-      let bot_app_key = 'mAdnKOee'; // Default bot_app_key
-      if (mode === 'kalenderakademik') {
-        bot_app_key = 'HTQdMJDA';
-      } else if (mode === 'marketing-management') {
-        bot_app_key = 'qmgRnljt';
-      } else if (mode === 'macroeconomics') {
-        bot_app_key = 'KLDDElGB';
-      } else if (mode === 'supply-chain') {
-        bot_app_key = 'mpIozNNe';
-      }
+      const bot_app_key = resolveBotKey(mode);
 
-      // Prepare the request body with dynamic content
       const requestBody = {
         content: userInput,
-        bot_app_key: bot_app_key,
+        bot_app_key,
         visitor_biz_id: "71f98ce2-fe7b-4c5e-aeb1-38bd87cc4dfd",
         session_id: "71f98ce2-fe7b-4c5e-aeb1-38bd87cc4dfd",
-        visitor_labels: []
+        visitor_labels: [],
       };
 
-      const response = await fetch("https://wss.lke.tencentcloud.com/v1/qbot/chat/sse", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "text/event-stream",
-        },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await fetch(
+        "https://wss.lke.tencentcloud.com/v1/qbot/chat/sse",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Process SSE response with streaming
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let aiResponseContent = "";
-      let aiMessageId = messagesAfterUser.length + 1;
+      const aiMessageId = messagesAfterUser.length + 1;
 
-      // Add a placeholder AI message to the state
-      const messagesAfterAIPlaceholder = [...messagesAfterUser, { id: aiMessageId, text: '', isUser: false }];
+      const messagesAfterAIPlaceholder = [
+        ...messagesAfterUser,
+        { id: aiMessageId, text: "", isUser: false },
+      ];
       setMessages(messagesAfterAIPlaceholder);
-      setStreamChunkCount(0); // Reset count for new message
+      setStreamChunkCount(0);
 
       if (reader) {
-        let buffer = '';
-        
+        let buffer = "";
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           buffer += decoder.decode(value);
-          
-          // Process complete SSE events
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Keep incomplete line in buffer
-          
-          let currentEvent = '';
-          
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          let currentEvent = "";
           for (const line of lines) {
-            if (line.startsWith('event:')) {
+            if (line.startsWith("event:")) {
               currentEvent = line.slice(6).trim();
-            } else if (line.startsWith('data:')) {
+            } else if (line.startsWith("data:")) {
               const dataStr = line.slice(5).trim();
-              
-              // Process 'reply' events which contain the streaming content
-              if (currentEvent === 'reply') {
+
+              if (currentEvent === "reply") {
                 try {
                   const data = JSON.parse(dataStr);
                   if (data.payload?.content !== undefined) {
-                    const newContent = data.payload.content;
-                    aiResponseContent = newContent;
-                    setStreamChunkCount(prev => prev + 1); // Increment chunk count
-
+                    aiResponseContent = data.payload.content;
+                    setStreamChunkCount((prev) => prev + 1);
                     setMessages(
                       messagesAfterAIPlaceholder.map((msg) =>
-                        msg.id === aiMessageId ? { ...msg, text: aiResponseContent } : msg
+                        msg.id === aiMessageId
+                          ? { ...msg, text: aiResponseContent }
+                          : msg
                       )
                     );
                   }
                 } catch (e) {
-                  console.error('Failed to parse SSE reply event:', e);
+                  console.error("Failed to parse SSE reply event:", e);
                 }
               }
-            } else if (line.trim() === '') {
-              currentEvent = '';
+            } else if (line.trim() === "") {
+              currentEvent = "";
             }
           }
         }
       }
-      setStreamChunkCount(0); // Reset after streaming is complete
 
-      // If no content was received through streaming, handle completion
-      if (aiResponseContent === '') {
+      setStreamChunkCount(0);
+
+      if (aiResponseContent === "") {
         const updatedMessages = messagesAfterAIPlaceholder.map((msg) =>
-          msg.id === aiMessageId ? { ...msg, text: 'No response received from the server.' } : msg
+          msg.id === aiMessageId
+            ? { ...msg, text: "No response received from the server." }
+            : msg
         );
         setMessages(updatedMessages);
       }
     } catch (error) {
       console.error("Error during API call:", error);
-      setMessages([...messagesAfterUser, { id: messagesAfterUser.length + 1, text: 'Error: Unable to get a response. Details: ' + (error instanceof Error ? error.message : String(error)), isUser: false }]);
+      setMessages([
+        ...messagesAfterUser,
+        {
+          id: messagesAfterUser.length + 1,
+          text:
+            "Error: Unable to get a response. Details: " +
+            (error instanceof Error ? error.message : String(error)),
+          isUser: false,
+        },
+      ]);
     } finally {
       setIsLoading(false);
+      if (messages.every((m) => !m.isUser)) {
+        setShowExamples(true);
+      }
     }
+  };
+
+  // Preserve Enter/Send button behavior by delegating to the helper with current input
+  const handleSendMessage = async () => {
+    await handleSendMessageWithText(input);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -240,53 +288,33 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                 Today
               </div>
             </div>
+
+            {/* Example question suggestions (only when no user messages yet) */}
+            {showExamples && messages.every((m) => !m.isUser) && (
+              <div className="max-w-3xl mx-auto -mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {examples.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => handleSuggestionClick(q)}
+                      className="text-left rounded-xl border border-black/10 bg-white hover:bg-muted px-4 py-3 text-sm transition-colors shadow-xs"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {messages.map((message, index) => (
               <ChatMessage key={message.id} isUser={message.isUser}>
                 {message.isUser ? (
                   <p>{message.text}</p>
-                ) : (isLoading && index === messages.length - 1 && streamChunkCount < 3) ? (
+                ) : isLoading && index === messages.length - 1 && streamChunkCount < 3 ? (
                   <MessageLoading />
                 ) : (
-                  <div className="prose dark:prose-invert max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[RehypeHighlight as any]}
-                      components={{
-                        table: ({ children, ...props }) => (
-                          <Table className="my-4" {...props}>
-                            {children}
-                          </Table>
-                        ),
-                        thead: ({ children, ...props }) => (
-                          <TableHeader {...props}>
-                            {children}
-                          </TableHeader>
-                        ),
-                        tbody: ({ children, ...props }) => (
-                          <TableBody {...props}>
-                            {children}
-                          </TableBody>
-                        ),
-                        tr: ({ children, ...props }) => (
-                          <TableRow {...props}>
-                            {children}
-                          </TableRow>
-                        ),
-                        th: ({ children, ...props }) => (
-                          <TableHead {...props}>
-                            {children}
-                          </TableHead>
-                        ),
-                        td: ({ children, ...props }) => (
-                          <TableCell {...props}>
-                            {children}
-                          </TableCell>
-                        ),
-                      }}
-                    >
-                      {message.text}
-                    </ReactMarkdown>
-                  </div>
+                  <ChatMarkdown>{message.text}</ChatMarkdown>
                 )}
               </ChatMessage>
             ))}
@@ -390,7 +418,13 @@ export default function Chat({ mode, messages, setMessages }: { mode: string; me
                     </svg>
                     <span className="sr-only">Generate</span>
                   </Button>
-                  <Button className="rounded-full h-8" onClick={handleSendMessage} disabled={isLoading}>Send</Button>
+                  <Button
+                    className="rounded-full h-8"
+                    onClick={handleSendMessage}
+                    disabled={isLoading}
+                  >
+                    Send
+                  </Button>
                 </div>
               </div>
             </div>
